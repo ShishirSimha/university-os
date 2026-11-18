@@ -7,15 +7,15 @@
 default: &default
   adapter: postgresql
   encoding: unicode
-  host: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_HOST", "127.0.0.1") %>
-  port: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_PORT", 5432) %>
-  username: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_USERNAME", "postgres") %>
-  password: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_PASSWORD", "postgres") %>
+  host: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_HOST") %>
+  port: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_PORT") %>
+  username: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_USERNAME") %>
+  password: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_PASSWORD") %>
   max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 
 development:
   <<: *default
-  database: university_os
+  database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME") %>
   schema_search_path: library
 
 test:
@@ -26,20 +26,20 @@ test:
 production:
   primary:
     <<: *default
-    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME", "university_os") %>
+    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME") %>
     schema_search_path: library
   cache:
     <<: *default
-    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME", "university_os") %>
+    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME") %>
     schema_search_path: public
     migrations_paths: db/cache_migrate
   queue:
     <<: *default
-    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME", "university_os") %>
+    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME") %>
     schema_search_path: public
     migrations_paths: db/queue_migrate
   cable:
     <<: *default
-    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME", "university_os") %>
+    database: <%= ENV.fetch("UNIVERSITY_OS_DATABASE_NAME") %>
     schema_search_path: public
     migrations_paths: db/cable_migrate

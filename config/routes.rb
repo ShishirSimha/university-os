@@ -12,6 +12,9 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :auth do
       post "register", to: "registrations#create"
+      post "login", to: "login#create"
+      post "logout", to: "logouts#create"
+      post "password/reset", to: "passwords#create"
     end
   end
 end
