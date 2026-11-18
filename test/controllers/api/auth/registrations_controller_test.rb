@@ -2,11 +2,13 @@ require "test_helper"
 
 class Api::Auth::RegistrationsControllerTest < ActionDispatch::IntegrationTest
   setup do
+    @institution = create_institution
     @payload = {
       email: "test@test.com",
       password: "password",
       name: "Test Name",
       accountType: "user",
+      institutionCode: "abc",
       country: "Nigeria",
       countryCode: "+123",
       state: "Rivers",
@@ -36,12 +38,17 @@ class Api::Auth::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "8124566736", user_json["phoneNumber"]
     assert_nil user_json["password"]
     assert_nil user_json["password_digest"]
+    assert_equal @institution.id, user_json.dig("institution", "id")
+    assert_equal "ABC", user_json.dig("institution", "code")
+    assert_equal "ABC University", user_json.dig("institution", "name")
 
     user = User.find(user_json["id"])
+    assert_equal @institution.id, user.tenant_id
     assert user.authenticate("password")
 
     payload = JsonWebToken.decode(body.dig("data", "token"))
     assert_equal user.id, payload.fetch("sub")
+    assert_equal @institution.id, payload.fetch("tid")
     assert_in_delta 30.minutes.from_now.to_i, payload.fetch("exp"), 5
   end
 
@@ -55,7 +62,8 @@ class Api::Auth::RegistrationsControllerTest < ActionDispatch::IntegrationTest
       country_code: "+234",
       state: "Lagos",
       address: "1 Admin Road",
-      phone_number: "8012345678"
+      phone_number: "8012345678",
+      institution_code: "ABC"
     }, as: :json
 
     assert_response :created
@@ -88,5 +96,38 @@ class Api::Auth::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes body["message"], "Password is too short"
     assert_includes body["message"], "Account type must be user or admin"
     assert_includes body["message"], "Name can't be blank"
+  end
+
+  test "returns 400 when the institution is missing, unknown, or suspended" do
+    post "/api/auth/register", params: @payload.except(:institutionCode), as: :json
+
+    assert_response :bad_request
+    assert_includes response.parsed_body["message"], "Institution code can't be blank"
+    assert_equal 0, User.where(email: "test@test.com").count
+
+    post "/api/auth/register", params: @payload.merge(institutionCode: "MISSING"), as: :json
+
+    assert_response :bad_request
+    assert_equal "Institution not found", response.parsed_body["message"]
+
+    @institution.update!(status: "suspended")
+    post "/api/auth/register", params: @payload, as: :json
+
+    assert_response :bad_request
+    assert_equal "Institution is suspended", response.parsed_body["message"]
+  end
+
+  test "registers the same email at another institution" do
+    post "/api/auth/register", params: @payload, as: :json
+    assert_response :created
+
+    create_institution(code: "XYZ", name: "XYZ University")
+    assert_difference -> { User.count }, 1 do
+      post "/api/auth/register", params: @payload.merge(institutionCode: "XYZ"), as: :json
+    end
+
+    assert_response :created
+    assert_equal "XYZ", response.parsed_body.dig("data", "user", "institution", "code")
+    assert_equal 2, User.where(email: "test@test.com").count
   end
 end

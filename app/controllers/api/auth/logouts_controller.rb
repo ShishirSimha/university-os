@@ -1,32 +1,26 @@
 module Api
   module Auth
     class LogoutsController < Api::BaseController
-      def create
-        token = bearer_token
-        return render_error("Authorization token is required") if token.blank?
+      before_action :authenticate_for_logout
 
-        payload = JsonWebToken.decode(token)
-        user = User.find(payload.fetch("sub"))
-        JsonWebToken.revoke(payload)
+      def create
+        JsonWebToken.revoke(token_payload)
 
         render json: {
           status: 200,
           message: "User logged out successfully",
-          data: user.registration_json
+          data: current_user.registration_json
         }
       rescue JsonWebToken::RevokedError
         render_error("Token has been revoked")
-      rescue JWT::ExpiredSignature
-        render_error("Token has expired")
-      rescue JWT::DecodeError, ActiveRecord::RecordNotFound
+      rescue JWT::DecodeError
         render_error("Invalid token")
       end
 
       private
 
-      def bearer_token
-        scheme, token = request.authorization.to_s.split(" ", 2)
-        token if scheme&.casecmp("bearer")&.zero? && token.present?
+      def authenticate_for_logout
+        authenticate_user!(allow_suspended: true)
       end
     end
   end

@@ -1,14 +1,27 @@
 module Api
   module Auth
     class RegistrationsController < Api::BaseController
+      include InstitutionResolution
+
       def create
+        tenant = institution_for_registration
+        return if performed?
+
         user = User.new(registration_attributes)
+        user.tenant = tenant
+        user.validate
+        if institution_code.blank?
+          user.errors.delete(:tenant)
+          user.errors.add(:base, "Institution code can't be blank")
+        end
+        return render_error(user.errors.full_messages.to_sentence) if user.errors.any?
+
         user.save!
         render json: {
           status: 201,
           message: "User registered successfully",
           data: {
-            token: JsonWebToken.encode(user.id),
+            token: JsonWebToken.encode(user.id, user.tenant_id),
             user: user.registration_json
           }
         }, status: :created
@@ -42,6 +55,23 @@ module Api
 
       def first_present(source, *keys)
         keys.lazy.filter_map { |key| source[key].presence }.first
+      end
+
+      def institution_for_registration
+        return if institution_code.blank?
+
+        tenant = find_institution
+        if tenant.nil?
+          render_error("Institution not found")
+          return
+        end
+
+        if tenant.suspended?
+          render_error("Institution is suspended")
+          return
+        end
+
+        tenant
       end
     end
   end

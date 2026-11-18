@@ -1,0 +1,2691 @@
+{
+  "info": {
+    "_postman_id": "0a719033-de4c-48c5-bdcf-d6423cb4ad3e",
+    "name": "UniversityOS API",
+    "description": "Requests for the UniversityOS APIs that are implemented today: institutional authentication and the Book Management catalogue.\n\nResponses use `{ \"status\": number, \"message\": string, \"data\": object }`. Errors use `{ \"status\": number, \"message\": string }` and do not include `data`.\n\nSuggested order:\n1. Create institution.\n2. Register administrator. The test script stores the JWT in `token`.\n3. Register student. That token is stored separately in `studentToken`.\n4. Create author, publisher, category, subject, and genre.\n5. Create book, then publish it.\n6. List published books as a student.\n\nThe catalogue reads the institution from the JWT. Do not send `tenantId`. An `admin` account manages the catalogue. A `user` account can read published works only. A record owned by another institution is returned as 404 `Record not found`.\n\nImport `UniversityOS Local` if you want to point `baseUrl` at another host. Leave `token` as a collection variable so the login script can fill it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "institutionCode",
+      "value": "ABC"
+    },
+    {
+      "key": "institutionName",
+      "value": "ABC University"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@abc.test"
+    },
+    {
+      "key": "adminPassword",
+      "value": "password1"
+    },
+    {
+      "key": "studentEmail",
+      "value": "student@abc.test"
+    },
+    {
+      "key": "studentPassword",
+      "value": "password1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "studentUserId",
+      "value": ""
+    },
+    {
+      "key": "languageId",
+      "value": ""
+    },
+    {
+      "key": "formatId",
+      "value": ""
+    },
+    {
+      "key": "authorId",
+      "value": ""
+    },
+    {
+      "key": "authorLinkId",
+      "value": ""
+    },
+    {
+      "key": "publisherId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "subjectId",
+      "value": ""
+    },
+    {
+      "key": "genreId",
+      "value": ""
+    },
+    {
+      "key": "bookId",
+      "value": ""
+    },
+    {
+      "key": "draftBookId",
+      "value": ""
+    },
+    {
+      "key": "editionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/up",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "up"
+              ]
+            },
+            "description": "Load-balancer health check. Returns 200 when the Rails process is up.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Institution onboarding, registration, login, logout, and password reset. Login and registration accept `institutionCode`. The password reset call does not check an OTP. Call it only after the client has already verified the email.",
+      "item": [
+        {
+          "name": "Create institution",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/institutions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "institutions"
+              ]
+            },
+            "description": "Creates the tenant used by later registration and login calls. `code` is stored in uppercase and must be 2 to 50 letters, numbers, underscores, or hyphens.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{institutionName}}\",\n  \"code\": \"{{institutionCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Institution created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().message).to.eql('Institution created successfully');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register administrator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Registers an `admin` user. Catalogue writes require this account type. The returned JWT is stored in `token`.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionCode\": \"{{institutionCode}}\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"name\": \"Ada Admin\",\n  \"accountType\": \"admin\",\n  \"country\": \"India\",\n  \"countryCode\": \"+91\",\n  \"state\": \"Karnataka\",\n  \"address\": \"University Campus\",\n  \"phoneNumber\": \"9876543210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Administrator registered', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(body.message).to.eql('User registered successfully');",
+                  "});",
+                  "pm.collectionVariables.set('token', body.data.token);",
+                  "pm.collectionVariables.set('adminToken', body.data.token);",
+                  "pm.collectionVariables.set('userId', String(body.data.user.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Registers a `user` who can read the published catalogue. The JWT is stored in `studentToken` and does not replace the administrator token.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionCode\": \"{{institutionCode}}\",\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\",\n  \"name\": \"Sam Student\",\n  \"accountType\": \"user\",\n  \"country\": \"India\",\n  \"countryCode\": \"+91\",\n  \"state\": \"Karnataka\",\n  \"address\": \"Student Hostel\",\n  \"phoneNumber\": \"9876543211\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Student registered', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('studentToken', body.data.token);",
+                  "pm.collectionVariables.set('studentUserId', String(body.data.user.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as administrator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Returns `data.token` and `data.user`. The test script stores the token for the catalogue requests. `email` is also accepted as `emai`.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionCode\": \"{{institutionCode}}\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Login succeeds', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.message).to.eql('Login successfully');",
+                  "  pm.expect(body.data.token).to.be.a('string');",
+                  "});",
+                  "pm.collectionVariables.set('token', body.data.token);",
+                  "pm.collectionVariables.set('adminToken', body.data.token);",
+                  "pm.collectionVariables.set('userId', String(body.data.user.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Stores the reader JWT in `studentToken`.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionCode\": \"{{institutionCode}}\",\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Student login succeeds', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.message).to.eql('Login successfully');",
+                  "});",
+                  "pm.collectionVariables.set('studentToken', body.data.token);",
+                  "pm.collectionVariables.set('studentUserId', String(body.data.user.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/password/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "password",
+                "reset"
+              ]
+            },
+            "description": "Sets a new password for an email that the client has already verified. This endpoint does not check an OTP or a deep link. `data` is the user profile and does not include a token.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionCode\": \"{{institutionCode}}\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes the current JWT. Send an empty JSON body and the bearer token. Later calls with that token return `Token has been revoked`. Login again before calling the catalogue.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logged out', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().message).to.eql('User logged out successfully');",
+                  "});",
+                  "pm.collectionVariables.set('token', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Languages and formats",
+      "description": "Global reference data seeded with ISO language codes and the standard publication formats. Any authenticated user can read them.",
+      "item": [
+        {
+          "name": "List languages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/languages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "languages"
+              ]
+            },
+            "description": "Active languages. The test script stores the English id in `languageId`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const languages = (body.data && body.data.languages) || [];",
+                  "const english = languages.find((language) => language.code === 'en');",
+                  "if (english) { pm.collectionVariables.set('languageId', english.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show language",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/languages/{{languageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "languages",
+                "{{languageId}}"
+              ]
+            },
+            "description": "One active language. Run List languages first."
+          }
+        },
+        {
+          "name": "List book formats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/book_formats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "book_formats"
+              ]
+            },
+            "description": "Active formats: HARDCOVER, PAPERBACK, EBOOK, AUDIOBOOK, LARGE_PRINT, BRAILLE, OTHER. Stores the paperback id in `formatId`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const formats = (body.data && body.data.formats) || [];",
+                  "const paperback = formats.find((format) => format.code === 'PAPERBACK');",
+                  "if (paperback) { pm.collectionVariables.set('formatId', paperback.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show book format",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/book_formats/{{formatId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "book_formats",
+                "{{formatId}}"
+              ]
+            },
+            "description": "One active format. Run List book formats first."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authors",
+      "description": "Tenant-scoped authors. Writes require an administrator. Archiving is in the final folder so these records stay available for Create book.",
+      "item": [
+        {
+          "name": "List authors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authors?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list for the signed-in institution. `data` contains `authors`, `page`, `perPage`, and `total`."
+          }
+        },
+        {
+          "name": "Create author",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authors"
+              ]
+            },
+            "description": "Creates a record in the signed-in institution and stores its id in `authorId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Robert\",\n  \"middleName\": \"C.\",\n  \"lastName\": \"Martin\",\n  \"displayName\": \"Robert C. Martin\",\n  \"biography\": \"Software engineer and author.\",\n  \"orcid\": \"0000-0002-1825-0097\",\n  \"nationalityCode\": \"US\",\n  \"aliases\": [\n    \"Uncle Bob\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set(\"authorId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show author",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authors/{{authorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authors",
+                "{{authorId}}"
+              ]
+            },
+            "description": "Returns one record owned by the signed-in institution."
+          }
+        },
+        {
+          "name": "Update author",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authors/{{authorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authors",
+                "{{authorId}}"
+              ]
+            },
+            "description": "Updates only the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Robert Martin\",\n  \"biography\": \"Updated biography.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Publishers",
+      "description": "Tenant-scoped publishers. Writes require an administrator. Archiving is in the final folder so these records stay available for Create book.",
+      "item": [
+        {
+          "name": "List publishers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/publishers?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "publishers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list for the signed-in institution. `data` contains `publishers`, `page`, `perPage`, and `total`."
+          }
+        },
+        {
+          "name": "Create publisher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/publishers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "publishers"
+              ]
+            },
+            "description": "Creates a record in the signed-in institution and stores its id in `publisherId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Prentice Hall\",\n  \"description\": \"Technical publisher.\",\n  \"website\": \"https://example.test\",\n  \"countryCode\": \"US\",\n  \"email\": \"rights@example.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set(\"publisherId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show publisher",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/publishers/{{publisherId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "publishers",
+                "{{publisherId}}"
+              ]
+            },
+            "description": "Returns one record owned by the signed-in institution."
+          }
+        },
+        {
+          "name": "Update publisher",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/publishers/{{publisherId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "publishers",
+                "{{publisherId}}"
+              ]
+            },
+            "description": "Updates only the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"website\": \"https://prenticehall.example.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "description": "Tenant-scoped categories. Writes require an administrator. Archiving is in the final folder so these records stay available for Create book.",
+      "item": [
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list for the signed-in institution. `data` contains `categories`, `page`, `perPage`, and `total`."
+          }
+        },
+        {
+          "name": "Create category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories"
+              ]
+            },
+            "description": "Creates a record in the signed-in institution and stores its id in `categoryId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Computer Science\",\n  \"code\": \"CS\",\n  \"description\": \"Computing and information sciences.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set(\"categoryId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Returns one record owned by the signed-in institution."
+          }
+        },
+        {
+          "name": "Update category",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Updates only the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Computing, software, and information sciences.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subjects",
+      "description": "Tenant-scoped subjects. Writes require an administrator. Archiving is in the final folder so these records stay available for Create book.",
+      "item": [
+        {
+          "name": "List subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subjects?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subjects"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "classificationScheme",
+                  "value": "LOCAL",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list for the signed-in institution. `data` contains `subjects`, `page`, `perPage`, and `total`."
+          }
+        },
+        {
+          "name": "Create subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subjects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subjects"
+              ]
+            },
+            "description": "Creates a record in the signed-in institution and stores its id in `subjectId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Software Engineering\",\n  \"code\": \"SE\",\n  \"classificationScheme\": \"LOCAL\",\n  \"description\": \"Methods for building software.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set(\"subjectId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show subject",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subjects/{{subjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subjects",
+                "{{subjectId}}"
+              ]
+            },
+            "description": "Returns one record owned by the signed-in institution."
+          }
+        },
+        {
+          "name": "Update subject",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subjects/{{subjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subjects",
+                "{{subjectId}}"
+              ]
+            },
+            "description": "Updates only the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Software design and construction.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Genres",
+      "description": "Tenant-scoped genres. Writes require an administrator. Archiving is in the final folder so these records stay available for Create book.",
+      "item": [
+        {
+          "name": "List genres",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/genres?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "genres"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list for the signed-in institution. `data` contains `genres`, `page`, `perPage`, and `total`."
+          }
+        },
+        {
+          "name": "Create genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/genres",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "genres"
+              ]
+            },
+            "description": "Creates a record in the signed-in institution and stores its id in `genreId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Technical\",\n  \"code\": \"TECH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set(\"genreId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show genre",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/genres/{{genreId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "genres",
+                "{{genreId}}"
+              ]
+            },
+            "description": "Returns one record owned by the signed-in institution."
+          }
+        },
+        {
+          "name": "Update genre",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/genres/{{genreId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "genres",
+                "{{genreId}}"
+              ]
+            },
+            "description": "Updates only the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Technical writing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Books",
+      "description": "Work records. Create always starts as `draft`, even if the body sends another status. ISBN belongs on the edition. Publishing, archival, and draft deletion are separate requests. Search filters are on List books; enable the ones you need.",
+      "item": [
+        {
+          "name": "List books",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                },
+                {
+                  "key": "q",
+                  "value": "Clean",
+                  "disabled": true
+                },
+                {
+                  "key": "title",
+                  "value": "Clean Code",
+                  "disabled": true
+                },
+                {
+                  "key": "titleMatch",
+                  "value": "partial",
+                  "disabled": true
+                },
+                {
+                  "key": "author",
+                  "value": "Martin",
+                  "disabled": true
+                },
+                {
+                  "key": "isbn",
+                  "value": "978-0-13-235088-4",
+                  "disabled": true
+                },
+                {
+                  "key": "publisher",
+                  "value": "Prentice",
+                  "disabled": true
+                },
+                {
+                  "key": "subject",
+                  "value": "Software Engineering",
+                  "disabled": true
+                },
+                {
+                  "key": "genre",
+                  "value": "Technical",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "Computer Science",
+                  "disabled": true
+                },
+                {
+                  "key": "publicationYear",
+                  "value": "2008",
+                  "disabled": true
+                },
+                {
+                  "key": "language",
+                  "value": "en",
+                  "disabled": true
+                },
+                {
+                  "key": "format",
+                  "value": "PAPERBACK",
+                  "disabled": true
+                },
+                {
+                  "key": "edition",
+                  "value": "1st",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "published",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "title",
+                  "disabled": true
+                },
+                {
+                  "key": "direction",
+                  "value": "asc",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Administrators see every status in their institution. Students see published works only. Sort accepts `title`, `author`, `publicationYear`, or `recent`. `titleMatch` accepts `exact` or `partial`."
+          }
+        },
+        {
+          "name": "List published books as student",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?q=Clean Code&page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Clean Code"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Uses `studentToken`. Drafts are omitted. A draft id returns 404 rather than 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ]
+            },
+            "description": "Creates one work, one edition, and a normalized ISBN-13. Run the author, publisher, and category requests first. Subjects and genres are linked by the associate requests. The script stores `bookId`, `editionId`, and `authorLinkId`. Change `catalogueNumber` before running this again.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Clean Code\",\n  \"subtitle\": \"A Handbook of Agile Software Craftsmanship\",\n  \"description\": \"A handbook of software craftsmanship.\",\n  \"workType\": \"book\",\n  \"catalogueNumber\": \"CC-001\",\n  \"originalLanguageCode\": \"en\",\n  \"primaryCategoryId\": \"{{categoryId}}\",\n  \"authors\": [\n    {\n      \"authorId\": \"{{authorId}}\",\n      \"role\": \"author\",\n      \"sequence\": 1\n    }\n  ],\n  \"metadata\": [\n    {\n      \"schema\": \"local\",\n      \"key\": \"audience\",\n      \"value\": {\n        \"level\": \"undergraduate\"\n      }\n    }\n  ],\n  \"editions\": [\n    {\n      \"editionNumber\": \"1st Edition\",\n      \"publicationDate\": \"2008-08-01\",\n      \"publicationYear\": 2008,\n      \"languageCode\": \"en\",\n      \"formatCode\": \"PAPERBACK\",\n      \"publisherId\": \"{{publisherId}}\",\n      \"pageCount\": 464,\n      \"identifiers\": [\n        {\n          \"type\": \"ISBN_13\",\n          \"value\": \"978-0-13-235088-4\",\n          \"primary\": true\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Book created', function () { pm.response.to.have.status(201); });",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set('bookId', data.id); }",
+                  "if (data.editions && data.editions[0]) { pm.collectionVariables.set('editionId', data.editions[0].id); }",
+                  "if (data.authors && data.authors[0]) { pm.collectionVariables.set('authorLinkId', data.authors[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create unused draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ]
+            },
+            "description": "A draft with no editions. Its id is stored in `draftBookId` so Delete draft can remove it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Disposable draft\",\n  \"catalogueNumber\": \"CC-DRAFT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set('draftBookId', data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show book",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}"
+              ]
+            },
+            "description": "Work, contributors, editions, identifiers, classifications, metadata, and an inventory summary. Copy counts are null until Inventory exists."
+          }
+        },
+        {
+          "name": "Update book",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}"
+              ]
+            },
+            "description": "Updates work fields and replaces authors, subjects, categories, genres, or metadata when those keys are sent. Edition changes use the edition endpoints. Archived works return 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subtitle\": \"A Handbook of Agile Software Craftsmanship\",\n  \"description\": \"Revised catalogue description.\",\n  \"reason\": \"Corrected the description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Associate author",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/authors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "authors"
+              ]
+            },
+            "description": "Adds one contributor. Roles: author, co_author, editor, translator, illustrator, compiler, contributor. The join id is stored in `authorLinkId`. A repeated author and role returns 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorId\": \"{{authorId}}\",\n  \"role\": \"co_author\",\n  \"sequence\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set('authorLinkId', data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove author",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/authors/{{authorLinkId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "authors",
+                "{{authorLinkId}}"
+              ]
+            },
+            "description": "Removes one work-contributor link. `authorLinkId` is the association id, not the author id."
+          }
+        },
+        {
+          "name": "Associate subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/subjects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "subjects"
+              ]
+            },
+            "description": "Links a subject. Set `primary` to true to make it the only primary subject. Delete uses the subject id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjectId\": \"{{subjectId}}\",\n  \"primary\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Remove subject",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/subjects/{{subjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "subjects",
+                "{{subjectId}}"
+              ]
+            },
+            "description": "Removes the subject from this work."
+          }
+        },
+        {
+          "name": "Associate category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "categories"
+              ]
+            },
+            "description": "Links a category. Delete uses the category id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Remove category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Removes the category assignment."
+          }
+        },
+        {
+          "name": "Associate genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/genres",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "genres"
+              ]
+            },
+            "description": "Links a genre. Delete uses the genre id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"genreId\": \"{{genreId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Remove genre",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/genres/{{genreId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "genres",
+                "{{genreId}}"
+              ]
+            },
+            "description": "Removes the genre assignment."
+          }
+        },
+        {
+          "name": "Record cover metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "media"
+              ]
+            },
+            "description": "Stores object-storage metadata for a cover. The binary is not uploaded here. Allowed types are image/jpeg, image/png, image/webp, and image/gif. Maximum size is 5242880 bytes. Covers require alt text.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"editionId\": \"{{editionId}}\",\n  \"mediaType\": \"cover\",\n  \"storageKey\": \"covers/clean-code.jpg\",\n  \"originalFilename\": \"clean-code.jpg\",\n  \"mimeType\": \"image/jpeg\",\n  \"fileSize\": 1200,\n  \"width\": 400,\n  \"height\": 600,\n  \"variant\": \"original\",\n  \"altText\": \"Front cover of Clean Code\",\n  \"primary\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Submit for review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{draftBookId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{draftBookId}}",
+                "submit"
+              ]
+            },
+            "description": "Moves a draft to `under_review`. Use a draft id. A published book cannot take this transition."
+          }
+        },
+        {
+          "name": "Reject book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{draftBookId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{draftBookId}}",
+                "reject"
+              ]
+            },
+            "description": "Moves `under_review` to `rejected`."
+          }
+        },
+        {
+          "name": "Publish book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "publish"
+              ]
+            },
+            "description": "An administrator may publish a draft directly. Students receive 403. The response is the published work."
+          }
+        },
+        {
+          "name": "Withdraw book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/withdraw",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "withdraw"
+              ]
+            },
+            "description": "Moves a published work to `withdrawn`. It leaves the student catalogue and can later be archived."
+          }
+        },
+        {
+          "name": "Archive book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "archive"
+              ]
+            },
+            "description": "Archives a published or withdrawn work. `circulationWarnings` is empty. Copy counts stay null. Existing loans are not changed by this call."
+          }
+        },
+        {
+          "name": "Audit history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/audit_logs?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "audit_logs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Administrator-only history for this work. `data.auditLogs` is newest first."
+          }
+        },
+        {
+          "name": "Delete draft",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{draftBookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{draftBookId}}"
+              ]
+            },
+            "description": "Hard-deletes a draft that has no editions. A published book, or a draft that still has editions, returns 409."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Editions",
+      "description": "Published versions of a work. Identifiers and edition-specific contributors are added here. Only an edition of a draft can be deleted.",
+      "item": [
+        {
+          "name": "List editions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/editions?page=1&perPage=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "editions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Editions of one work. Students can list editions of a published work."
+          }
+        },
+        {
+          "name": "Create edition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/{{bookId}}/editions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "{{bookId}}",
+                "editions"
+              ]
+            },
+            "description": "Adds an edition and stores its id in `editionId`. Identifiers in this body are accepted on create. Later identifier changes use Add identifier.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"editionNumber\": \"2nd Edition\",\n  \"editionTitle\": \"Second edition\",\n  \"publicationYear\": 2019,\n  \"languageCode\": \"en\",\n  \"formatCode\": \"HARDCOVER\",\n  \"publisherId\": \"{{publisherId}}\",\n  \"pageCount\": 480,\n  \"identifiers\": [\n    {\n      \"type\": \"ISBN_13\",\n      \"value\": \"9780132350891\",\n      \"primary\": true\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const data = body.data || {};",
+                  "if (data.id) { pm.collectionVariables.set('editionId', data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show edition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/editions/{{editionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "editions",
+                "{{editionId}}"
+              ]
+            },
+            "description": "Edition details, identifiers, contributors, and media. Students only receive an edition of a published work."
+          }
+        },
+        {
+          "name": "Update edition",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/editions/{{editionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "editions",
+                "{{editionId}}"
+              ]
+            },
+            "description": "Updates edition fields that are present in the body. Sending `identifiers` here is rejected. Use Add identifier instead.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pageCount\": 488,\n  \"widthMm\": 190,\n  \"heightMm\": 240,\n  \"depthMm\": 30,\n  \"weightGrams\": 700,\n  \"seriesName\": \"Robert C. Martin Series\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add identifier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/editions/{{editionId}}/identifiers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "editions",
+                "{{editionId}}",
+                "identifiers"
+              ]
+            },
+            "description": "Adds ISBN_10, ISBN_13, DOI, OCLC, LCCN, or OTHER. ISBNs are validated and stored without hyphens. The same identifier cannot be repeated in one institution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"DOI\",\n  \"value\": \"10.0000/cleancode.2\",\n  \"primary\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add edition contributor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/editions/{{editionId}}/contributors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "editions",
+                "{{editionId}}",
+                "contributors"
+              ]
+            },
+            "description": "Associates a contributor with this edition only, for example the translator of one translation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorId\": \"{{authorId}}\",\n  \"role\": \"translator\",\n  \"sequence\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete edition",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/editions/{{editionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "editions",
+                "{{editionId}}"
+              ]
+            },
+            "description": "Deletes the edition when its work is still a draft. An edition of a published work returns 409. Audit rows remain on the work."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Archive records",
+      "description": "Run these after catalogue setup. Archiving keeps the row and its links. An archived author or publisher cannot be newly assigned.",
+      "item": [
+        {
+          "name": "Archive author",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authors/{{authorId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authors",
+                "{{authorId}}",
+                "archive"
+              ]
+            },
+            "description": "Marks the author archived. Existing book links remain."
+          }
+        },
+        {
+          "name": "Archive publisher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/publishers/{{publisherId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "publishers",
+                "{{publisherId}}",
+                "archive"
+              ]
+            },
+            "description": "Marks the publisher archived. Existing editions keep the publisher."
+          }
+        },
+        {
+          "name": "Archive category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/{{categoryId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories",
+                "{{categoryId}}",
+                "archive"
+              ]
+            },
+            "description": "Marks the category archived."
+          }
+        },
+        {
+          "name": "Archive subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subjects/{{subjectId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subjects",
+                "{{subjectId}}",
+                "archive"
+              ]
+            },
+            "description": "Marks the subject archived."
+          }
+        },
+        {
+          "name": "Archive genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/genres/{{genreId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "genres",
+                "{{genreId}}",
+                "archive"
+              ]
+            },
+            "description": "Marks the genre archived."
+          }
+        }
+      ]
+    }
+  ]
+}

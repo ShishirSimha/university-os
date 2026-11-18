@@ -1,11 +1,16 @@
 module Api
   module Auth
     class PasswordsController < Api::BaseController
+      include InstitutionResolution
+
       def create
         return render_error("Email can't be blank") if normalized_email.blank?
         return render_error("Password can't be blank") if source[:password].blank?
 
-        user = User.find_by(email: normalized_email)
+        tenant = require_active_institution
+        return unless tenant
+
+        user = User.find_by(tenant_id: tenant.id, email: normalized_email)
         return render_error("Email not found") unless user
 
         user.password = source[:password]

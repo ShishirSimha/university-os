@@ -2,21 +2,12 @@ require "test_helper"
 
 class Api::Auth::LogoutsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @user = User.create!(
-      email: "test@test.com",
-      password: "password",
-      name: "Test Name",
-      account_type: "user",
-      country: "Nigeria",
-      country_code: "+123",
-      state: "Rivers",
-      address: "No. 6 Prince Okey",
-      phone_number: "8124566736"
-    )
+    @institution = create_institution
+    @user = create_auth_user(tenant: @institution)
   end
 
   test "logs out and revokes the bearer token" do
-    post "/api/auth/login", params: { email: "test@test.com", password: "password" }, as: :json
+    post "/api/auth/login", params: { email: "test@test.com", password: "password", institutionCode: "ABC" }, as: :json
     token = response.parsed_body.dig("data", "token")
     payload = JsonWebToken.decode(token)
 
@@ -55,10 +46,27 @@ class Api::Auth::LogoutsControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
     assert_equal "Invalid token", response.parsed_body["message"]
 
-    expired = JsonWebToken.encode(@user.id, expires_at: 1.minute.ago)
+    expired = JsonWebToken.encode(@user.id, @user.tenant_id, expires_at: 1.minute.ago)
     post "/api/auth/logout", headers: { "Authorization" => "Bearer #{expired}" }, as: :json
 
     assert_response :bad_request
     assert_equal "Token has expired", response.parsed_body["message"]
+  end
+
+  test "rejects a token issued for another institution and still logs out a suspended institution" do
+    other = create_institution(code: "XYZ", name: "XYZ University")
+    mismatched = JsonWebToken.encode(@user.id, other.id)
+    post "/api/auth/logout", headers: { "Authorization" => "Bearer #{mismatched}" }, as: :json
+
+    assert_response :bad_request
+    assert_equal "Invalid token", response.parsed_body["message"]
+    assert_not RevokedToken.revoked?(JsonWebToken.decode(mismatched).fetch("jti"))
+
+    token = JsonWebToken.encode(@user.id, @user.tenant_id)
+    @institution.update!(status: "suspended")
+    post "/api/auth/logout", headers: { "Authorization" => "Bearer #{token}" }, as: :json
+
+    assert_response :ok
+    assert_raises(JsonWebToken::RevokedError) { JsonWebToken.decode(token) }
   end
 end

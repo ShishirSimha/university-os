@@ -5,8 +5,8 @@ module JsonWebToken
   EXPIRY = 30.minutes
 
   class << self
-    def encode(user_id, expires_at: EXPIRY.from_now)
-      payload = { sub: user_id, jti: SecureRandom.uuid, exp: expires_at.to_i }
+    def encode(user_id, tenant_id, expires_at: EXPIRY.from_now)
+      payload = { sub: user_id, tid: tenant_id.to_s, jti: SecureRandom.uuid, exp: expires_at.to_i }
       JWT.encode(payload, secret, ALGORITHM)
     end
 

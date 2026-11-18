@@ -1,6 +1,8 @@
 class User < ApplicationRecord
   ACCOUNT_TYPES = %w[user admin].freeze
 
+  belongs_to :tenant
+
   has_secure_password
 
   before_validation :normalize_registration_attributes
@@ -9,10 +11,14 @@ class User < ApplicationRecord
     presence: true,
     length: { maximum: 255 },
     format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true },
-    uniqueness: { case_sensitive: false, allow_blank: true }
+    uniqueness: { scope: :tenant_id, case_sensitive: false, allow_blank: true }
   validates :name, :country, :country_code, :state, :address, :phone_number, presence: true
   validates :account_type, inclusion: { in: ACCOUNT_TYPES, message: "must be user or admin" }
   validates :password, length: { minimum: 8 }, if: -> { password.present? }
+
+  def admin?
+    account_type == "admin"
+  end
 
   def registration_json
     {
@@ -24,7 +30,8 @@ class User < ApplicationRecord
       countryCode: country_code,
       state: state,
       address: address,
-      phoneNumber: phone_number
+      phoneNumber: phone_number,
+      institution: tenant&.institution_json
     }
   end
 

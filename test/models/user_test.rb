@@ -1,6 +1,10 @@
 require "test_helper"
 
 class UserTest < ActiveSupport::TestCase
+  setup do
+    @tenant = create_institution
+  end
+
   test "users table lives in the library schema" do
     schema = User.connection.select_value(<<~SQL.squish)
       SELECT n.nspname
@@ -33,12 +37,26 @@ class UserTest < ActiveSupport::TestCase
     assert_not_equal "password", user.password_digest
   end
 
-  test "rejects a duplicate email ignoring case" do
+  test "rejects a duplicate email ignoring case within the same institution" do
     build_user(email: "person@example.com").save!
     duplicate = build_user(email: "Person@Example.com")
 
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:email], "has already been taken"
+  end
+
+  test "allows the same email at another institution" do
+    build_user(email: "person@example.com").save!
+    other = build_user(email: "person@example.com", tenant: create_institution(code: "XYZ", name: "XYZ University"))
+
+    assert other.valid?
+  end
+
+  test "requires an institution" do
+    user = build_user(tenant: nil)
+
+    assert_not user.valid?
+    assert_includes user.errors[:tenant], "must exist"
   end
 
   private
@@ -53,7 +71,8 @@ class UserTest < ActiveSupport::TestCase
       country_code: "+123",
       state: "Rivers",
       address: "No. 6 Prince Okey",
-      phone_number: "8124566736"
+      phone_number: "8124566736",
+      tenant: @tenant
     }.merge(overrides))
   end
 end

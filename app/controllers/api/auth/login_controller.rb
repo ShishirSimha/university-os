@@ -1,8 +1,13 @@
 module Api
   module Auth
     class LoginController < Api::BaseController
+      include InstitutionResolution
+
       def create
-        user = User.find_by(email: normalized_email)
+        tenant = require_active_institution
+        return unless tenant
+
+        user = User.find_by(tenant_id: tenant.id, email: normalized_email)
         unless user&.authenticate(password_param)
           return render_error("Invalid email or password")
         end
@@ -11,7 +16,7 @@ module Api
           status: 200,
           message: "Login successfully",
           data: {
-            token: JsonWebToken.encode(user.id),
+            token: JsonWebToken.encode(user.id, user.tenant_id),
             user: user.registration_json
           }
         }
